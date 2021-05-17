@@ -7,6 +7,8 @@
 #include <filesystem>
 #include <algorithm>
 #include <ctype.h>
+#include <stdio.h>
+#include <unistd.h>
 #define WIDTH 800
 #define HEIGHT 600
 namespace fs = std::filesystem;
@@ -280,7 +282,7 @@ bool compare(FileEntry* x, FileEntry* y)
 
 std::vector<FileEntry*> addParentDict(std::vector<FileEntry*> parentlist, std::vector<FileEntry*> currlist)
 {
-    std::cout << "adding parent to list1:" << '\n';
+    //std::cout << "adding parent to list1:" << '\n';
     if(currlist.size() == 0)
     {
         //std::cout << "list name:" << currlist.at(i)->name << '\n';
@@ -288,20 +290,20 @@ std::vector<FileEntry*> addParentDict(std::vector<FileEntry*> parentlist, std::v
         dict->name = "..";
         dict->list = parentlist;
         dict->type = 0;
-        std::cout << "adding parent to list of zero:" << '\n';
+        //std::cout << "adding parent to list of zero:" << '\n';
         currlist.push_back(dict);
     }
     else if(currlist.at(0)->name != "..")
     {
-        std::cout << "adding parent to list:2" << '\n';
+        //std::cout << "adding parent to list:2" << '\n';
         Directory* dict = new Directory();
         dict->name = "..";
         dict->list = parentlist;
         dict->type = 0;
-        std::cout << "adding parent to list3:" << '\n';
+        //std::cout << "adding parent to list3:" << '\n';
         currlist.push_back(dict);
-        std::cout << "adding parent to list4:" << '\n';
-        std::cout << "currlist.at(currlist.size()-1)->name: "<< currlist.at(currlist.size()-1)->name << '\n';
+        //std::cout << "adding parent to list4:" << '\n';
+        //std::cout << "currlist.at(currlist.size()-1)->name: "<< currlist.at(currlist.size()-1)->name << '\n';
     }
     return currlist;
 }
@@ -408,6 +410,7 @@ int main(int argc, char **argv)
                 }
                 for(int i = 0; i < currList.size();i++)
                 {
+                    //std::cout << "list.at(i)->name: " << currList.at(i)->name<<"\n";
                    if (event.button.button == SDL_BUTTON_LEFT &&
                     event.button.x >= currList.at(i)->rect.x &&
                     event.button.x <= currList.at(i)->rect.x + currList.at(i)->rect.w &&
@@ -429,7 +432,16 @@ int main(int argc, char **argv)
                         }
                         else
                         {
-                            
+                            int pid = fork();
+                            if(pid == 0)//child
+                            {
+                                char oparg[9];
+                                char filePath[128];
+                                strcpy(oparg, "xdg-open");
+                                strcpy(filePath, currList.at(i)->path.c_str());
+                                char *const args[3] = {oparg, filePath, NULL};
+                                execvp("xdg-open", args);
+                            }
                         }
                     } 
                 }
@@ -466,7 +478,7 @@ void initialize(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> l
     // set color of background when erasing frame
     SDL_SetRenderDrawColor(renderer, 235, 235, 235, 255);
 
-    data->font = TTF_OpenFont("resrc/OpenSans-Regular.ttf", 13);
+    data->font = TTF_OpenFont("resrc/OpenSans-Regular.ttf", 16);
     SDL_Color phrase_color = {0,0,0};
     for(int i = 0; i < list.size();i++)
     {
