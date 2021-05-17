@@ -19,51 +19,51 @@ class FileEntry
         int w;
         int h;
         std::string name;
+        std::string readableSize;
         int type;
+        SDL_Texture *phrase;
+        SDL_Texture *phraseSize;
+        std::string permissions;
+        SDL_Texture *phrasePermission;
+        std::string path;
+        int fileSize;
 };
   
 // Sub class inheriting from Base Class(Parent)
 class Directory : public FileEntry
 {
     public:
-        std::vector<FileEntry> list;
+        std::vector<FileEntry*> list;
 };
  
 // Sub class inheriting from Base Class(Parent)
 class Exec : public FileEntry
 {
     public:
-        int fileSize;
-        std::string permissions;
+        
+        
         
 };
 // Sub class inheriting from Base Class(Parent)
 class Image : public FileEntry
 {
     public:
-        int fileSize;
-        std::string permissions;
+        
 };
 // Sub class inheriting from Base Class(Parent)
 class Video : public FileEntry
 {
     public:
-        int fileSize;
-        std::string permissions;
 };
 // Sub class inheriting from Base Class(Parent)
 class Code : public FileEntry
 {
     public:
-        int fileSize;
-        std::string permissions;
 };
 // Sub class inheriting from Base Class(Parent)
 class Misc : public FileEntry
 {
     public:
-        int fileSize;
-        std::string permissions;
 };
 
 
@@ -76,12 +76,15 @@ typedef struct AppData{
     SDL_Texture *exec;
     SDL_Texture *direct;
     SDL_Texture *phrase;
+    bool scroll_selected;
+    SDL_Rect scroll_rect;
+    SDL_Point offset;
     std::vector<FileEntry> list;
 }AppData;
 
-void initialize(SDL_Renderer *renderer, AppData *data);
-void render(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry> list);
-
+void initialize(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list);
+void render(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list);
+std::string humanReadable(int input);
 std::string getPerms(fs::perms p)
 {
     std::string result;
@@ -147,75 +150,96 @@ std::string removeSchmutz(std::string line)
     return line;
 }
 
-std::vector<FileEntry> fillFiles(std::string path)
+std::vector<FileEntry*> fillFiles(std::string path)
 {
     std::string dot (".");
     std::size_t max = -1;
     //std::cout << "-------------------------------------\n";
     //std::cout << "path: " << path<<"\n";
-    std::vector<FileEntry> list;
+    std::vector<FileEntry*> list;
     std::vector<std::string> files;
     for (const auto & entry : fs::directory_iterator(path)){
         std::string filename(entry.path());
         if(fs::is_directory(entry) && filename.find(dot) != max){continue;}
         else if(fs::is_directory(entry))
         {
-            Directory dict;
-            dict.name = removeSchmutz(filename.substr(path.length()));
+            Directory* dict = new Directory();
+            dict->name = removeSchmutz(filename.substr(path.length()));
             //std::cout << "dict.name: " << dict.name<<"\n";
-            dict.list = fillFiles(filename);
-            dict.type = 0;
+            dict->list = fillFiles(filename);
+            dict->type = 0;
+            dict->path = filename;
             list.push_back(dict);
         }
         else
         {
-            Image im;
-            Video vid;
-            Code code;
-            Exec exec;
-            Misc misc;
-            //std::cout << "FILENAME: " << filename<<"\n";
-            //std::cout << "typeIder(filename): " << typeIder(filename)<<"\n";
+            Image* im;
+            Video* vid;
+            Code* code;
+            Exec* exec;
+            Misc* misc;
+            
             switch (typeIder(filename))
             {
             case 0://image
+                im = new Image();
+                im->name = removeSchmutz(filename.substr(path.length()));
                 
-                im.name = removeSchmutz(filename.substr(path.length()));
+                im->permissions = getPerms(fs::status(filename).permissions());
+                im->type = 2;
+                im->path = filename;
+                im->fileSize = entry.file_size();
+                im->readableSize = humanReadable(im->fileSize);
                 
-                im.permissions = getPerms(fs::status(filename).permissions());
-                im.type = 2;
                 list.push_back(im);
                 break;
             
             case 1://video
+                vid = new Video();
+                vid->name = removeSchmutz(filename.substr(path.length()));
+                vid->permissions = getPerms(fs::status(filename).permissions());
+                vid->type = 3;
+                vid->fileSize = entry.file_size();
+                vid->path = filename;
+                vid->readableSize = humanReadable(vid->fileSize);
                 
-                vid.name = removeSchmutz(filename.substr(path.length()));
-                vid.permissions = getPerms(fs::status(filename).permissions());
-                vid.type = 3;
                 list.push_back(vid);
+                
                 break;
             case 2://code
+                code = new Code();
+                code->name = removeSchmutz(filename.substr(path.length()));
+                code->permissions = getPerms(fs::status(filename).permissions());
+                code->type = 4;
+                code->fileSize = entry.file_size();
+                code->path = filename;
+                code->readableSize = humanReadable(code->fileSize);
                 
-                code.name = removeSchmutz(filename.substr(path.length()));
-                code.permissions = getPerms(fs::status(filename).permissions());
-                code.type = 4;
                 list.push_back(code);
                 break;
             
             case 3://exec
+                exec = new Exec();
+                exec->name = removeSchmutz(filename.substr(path.length()));
+                exec->permissions = getPerms(fs::status(filename).permissions());
+                exec->type = 1;
+                exec->fileSize = entry.file_size();
+                exec->path = filename;
+                exec->readableSize = humanReadable(exec->fileSize);
                 
-                exec.name = removeSchmutz(filename.substr(path.length()));
-                exec.permissions = getPerms(fs::status(filename).permissions());
-                exec.type = 1;
                 list.push_back(code);
                 
                 break;
 
             case 4://misc
-               
-                misc.name = removeSchmutz(filename.substr(path.length()));
-                misc.permissions = getPerms(fs::status(filename).permissions());
-                misc.type = 5;
+                misc = new Misc();
+                misc->name = removeSchmutz(filename.substr(path.length()));
+                misc->permissions = getPerms(fs::status(filename).permissions());
+                misc->type = 5;
+                misc->fileSize = entry.file_size();
+                misc->path = filename;
+                misc->readableSize = humanReadable(misc->fileSize);
+                
                 list.push_back(misc);
                 break;
 
@@ -228,57 +252,58 @@ std::vector<FileEntry> fillFiles(std::string path)
     return list;
 }
 
-bool compare(FileEntry x, FileEntry y) 
+bool compare(FileEntry* x, FileEntry* y) 
 {
-    /*//std::cout << "x: " <<  x.name << "\n";
-    //std::cout << "y: " <<  y.name << "\n";
-    std::string xlower = "";
-    std::string ylower = "";
-    for (int i=0; i<x.name.length(); ++i)
-    {
-        xlower.append("" + tolower(x.name.at(i)));
-    }   
-    std::locale loc2;
-    for (int i=0; i<y.name.length(); ++i)
-    {
-        ylower.append("" + tolower(y.name.at(i)));
-    }  
-    /*int i=0;
-    
-    char c;
-    for(int i =)
-    while (str[i])
-    {
-        c=str[i];
-        putchar (tolower(c));
-        i++;
-    }
-    i=0;
-    char c2;
-    while (str2[i])
-    {
-        c2=str2[i];
-        ;
-        i++;
-    }*/
-    //std::string xlower(str);
-    //std::string ylower(str2);
-    //std::cout << "xlower < ylower: " <<  xlower < ylower << "\n";
+    std::string xlower = x->name;
+    std::string ylower = y->name;
+    transform(xlower.begin(), xlower.end(), xlower.begin(), tolower);
+    transform(ylower.begin(), ylower.end(), ylower.begin(), tolower);
+    return xlower < ylower;
     //std::cout << "xlower: " <<  xlower << "\n";
     //std::cout << "ylower: " <<  ylower << "\n";
-    return x.name < y.name;
 
 } 
 
-void calcY(std::vector<FileEntry> list)
+void calcY(std::vector<FileEntry*> list)
 {
     for(int i = 0; i < list.size();i++)
     {
-        list.at(i).x = 10;
-        list.at(i).y = i*100 + i*10;
-        list.at(i).h = 100;
-        list.at(i).w = 100;
+        list.at(i)->x = 10;
+        list.at(i)->y = i*60 + i*10;
+        list.at(i)->h = 60;
+        list.at(i)->w = 60;
     }
+}
+
+std::string humanReadable(int input)
+{
+    int temp = 0;
+    std::string result;
+            if(input > 1073741824)
+            {
+                temp = input/1073741824;
+                result = std::to_string(temp);
+                result.append("GiB");
+            }
+            else if(input > 10480576)
+            {
+                temp = input/10480576;
+                result = std::to_string(temp);
+                result.append("MiB");
+            }
+            else if(input > 1024)
+            {
+                temp = input/1024;
+                result = std::to_string(temp);
+                result.append("KiB");
+            }
+            else{
+                result = std::to_string(input);
+                result.append("B");
+            }
+            return result;
+            //std::cout << "list.at(i)->readableSize: " << list.at(i)->readableSize << "\n";        
+    
 }
 
 int main(int argc, char **argv)
@@ -288,12 +313,12 @@ int main(int argc, char **argv)
 
     //grab all files
     std::string path(home);
-    std::vector<FileEntry> list = fillFiles(path);
+    std::vector<FileEntry*> list = fillFiles(path);
     std::sort(list.begin(),list.end(), compare);
     //std::cout << list.at(0).name << '\n';
     /*for (int i=0; i<list.size(); i++)
     {
-        std::cout << list.at(i).name << '\n';
+        std::cout << list.at(i)->name << '\n';
     }*/
     //std::cout << list.at(1).name << '\n';
     // initializing SDL as Video
@@ -310,19 +335,45 @@ int main(int argc, char **argv)
 
     // initialize and perform rendering loop
     AppData data;
-    initialize(renderer, &data);
+    initialize(renderer, &data,list);
     render(renderer, &data, list);
     SDL_Event event;
     SDL_WaitEvent(&event);
     while (event.type != SDL_QUIT)
     {
-        //render(renderer);
+        
         SDL_WaitEvent(&event);
+        switch (event.type)
+        {
+            case SDL_MOUSEMOTION:
+                if (data.scroll_selected)
+                {
+                    data.scroll_rect.x = event.motion.x - data.offset.x;
+                    data.scroll_rect.y = event.motion.y - data.offset.y;
+                }
+            case SDL_MOUSEBUTTONDOWN:
+                if (event.button.button == SDL_BUTTON_LEFT &&
+                    event.button.y >= data.scroll_rect.y &&
+                    event.button.y <= data.scroll_rect.y + data.scroll_rect.h)
+                {
+                    data.scroll_selected = true;
+                    data.offset.y = event.button.y - data.scroll_rect.y;
+                }
+                break;
+            case SDL_MOUSEBUTTONUP:
+                data.scroll_selected = false;
+                break;
+        }
+        render(renderer, &data, list);
     }
 
     // clean up
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
+    for (int i=0; i<list.size(); i++)
+    {
+        SDL_DestroyTexture(list.at(i)->phrase);
+    }
     SDL_DestroyTexture(data.other);
     SDL_DestroyTexture(data.exec);
     SDL_DestroyTexture(data.direct);
@@ -336,18 +387,46 @@ int main(int argc, char **argv)
     return 0;
 }
 
-void initialize(SDL_Renderer *renderer, AppData *data)
+void initialize(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list)
 {
     // set color of background when erasing frame
     SDL_SetRenderDrawColor(renderer, 235, 235, 235, 255);
 
-    data->font = TTF_OpenFont("resrc/OpenSans-Regular.ttf", 18);
+    data->font = TTF_OpenFont("resrc/OpenSans-Regular.ttf", 24);
     SDL_Color phrase_color = {0,0,0};
-    SDL_Surface *text_surf = TTF_RenderText_Solid(data->font, "video", phrase_color);
-    data->phrase = SDL_CreateTextureFromSurface(renderer,text_surf);
-    SDL_FreeSurface(text_surf);
+    for(int i = 0; i < list.size();i++)
+    {
+        //name
+        const char *nameChar = list.at(i)->name.c_str();
+        SDL_Surface *text_surf = TTF_RenderText_Solid(data->font, nameChar, phrase_color);
+        list.at(i)->phrase = SDL_CreateTextureFromSurface(renderer,text_surf);
 
+        if(list.at(i)->type !=0)
+        {
+            //permissions size
+            const char *permissionChar = list.at(i)->permissions.c_str();
+            SDL_Surface *text_surfPerm = TTF_RenderText_Solid(data->font, permissionChar, phrase_color);
+            list.at(i)->phrasePermission = SDL_CreateTextureFromSurface(renderer,text_surfPerm);
 
+            //file size
+            const char *sizeChar = list.at(i)->readableSize.c_str();
+            SDL_Surface *text_surfSize = TTF_RenderText_Solid(data->font, sizeChar, phrase_color);
+            list.at(i)->phraseSize = SDL_CreateTextureFromSurface(renderer,text_surfSize);
+
+            SDL_FreeSurface(text_surfSize);
+            SDL_FreeSurface(text_surfPerm);
+        }
+        SDL_FreeSurface(text_surf);
+        
+    }
+
+    //scrollbar
+    data->scroll_rect.x = 780;
+    data->scroll_rect.w = 20;
+    data->scroll_rect.h = 60;
+    data->scroll_rect.y = 0;
+
+    
     SDL_Surface *surf = IMG_Load("resrc/other.png");
     SDL_Surface *surf1 = IMG_Load("resrc/direct.png");
     SDL_Surface *surf2 = IMG_Load("resrc/exec.png");
@@ -368,58 +447,101 @@ void initialize(SDL_Renderer *renderer, AppData *data)
     SDL_FreeSurface(surf5);
 }
 
-void render(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry> list)
+void render(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list)
 {
     // erase renderer content
     SDL_SetRenderDrawColor(renderer, 0, 235, 235, 255);
     SDL_RenderClear(renderer);
 
     //render all file icons
-    SDL_Rect rect;
-    rect.x = 10;
-    rect.w = 100;
-    rect.h = 100;
-
+    
+    int bottomLimit = list.at(list.size()-1)->y;
+    int offsetY = 0;
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderFillRect(renderer, &data->scroll_rect);
     for(int i = 0; i < list.size(); i++)
     {
-        rect.y = list.at(i).y;
-        std::cout << "list.size():: " << list.size();
-        switch (list.at(i).type)
-        {
-        case 0:
-            std::cout << "direct";
-            SDL_RenderCopy(renderer, data->direct, NULL, &rect);
-            break;
+        SDL_Rect rectPerm;
+        rectPerm.x = 420;
+        rectPerm.w = 60;
+        rectPerm.h = 60;
+        rectPerm.y = list.at(i)->y;
         
-        case 1:
-            SDL_RenderCopy(renderer, data->exec, NULL, &rect);
-            break;
+        SDL_Rect rect;
+        rect.x = 10;
+        rect.w = 60;
+        rect.h = 60;
+        rect.y = list.at(i)->y;
         
-        case 2:
-            SDL_RenderCopy(renderer, data->image, NULL, &rect);
-            break;
-        
-        case 3:
-            SDL_RenderCopy(renderer, data->video, NULL, &rect);
-            break;
-        
-        case 4:
-            SDL_RenderCopy(renderer, data->code, NULL, &rect);
-            break;
-        
-        case 5:
-            SDL_RenderCopy(renderer, data->other, NULL, &rect);
-            break;
-        
-        default:
-            break;
-            
-        }
-        
-    }
+        SDL_Rect rectStr;
+        rectStr.x = 110;
+        rectStr.w = 300;
+        rectStr.h = 60;
+        rectStr.y = list.at(i)->y;
 
-    //SDL_QueryTexture(data->phrase, NULL,NULL, &(rect.w), &(rect.h));
-    //SDL_RenderCopy(renderer, data->phrase, NULL, &rect);
+        SDL_Rect rectFSize;
+        rectFSize.x = 630;
+        rectFSize.w = 300;
+        rectFSize.h = 60;
+        rectFSize.y = list.at(i)->y;
+        
+        if(list.at(i)->type == 0)
+        {
+            SDL_RenderCopy(renderer, data->direct, NULL, &rect);
+            SDL_QueryTexture(list.at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
+            SDL_RenderCopy(renderer, list.at(i)->phrase, NULL, &rectStr);
+        }
+        else if(list.at(i)->type == 1)
+        {
+            SDL_RenderCopy(renderer, data->exec, NULL, &rect);
+            SDL_QueryTexture(list.at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
+            SDL_RenderCopy(renderer, list.at(i)->phrase, NULL, &rectStr);
+            SDL_QueryTexture(list.at(i)->phrasePermission, NULL,NULL, &(rectPerm.w), &(rectPerm.h));
+            SDL_RenderCopy(renderer, list.at(i)->phrasePermission, NULL, &rectPerm);
+            SDL_QueryTexture(list.at(i)->phraseSize, NULL,NULL, &(rectFSize.w), &(rectFSize.h));
+            SDL_RenderCopy(renderer, list.at(i)->phraseSize, NULL, &rectFSize);
+        }
+        else if(list.at(i)->type == 2)
+        {
+            SDL_RenderCopy(renderer, data->image, NULL, &rect);
+            SDL_QueryTexture(list.at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
+            SDL_RenderCopy(renderer, list.at(i)->phrase, NULL, &rectStr);
+            SDL_QueryTexture(list.at(i)->phrasePermission, NULL,NULL, &(rectPerm.w), &(rectPerm.h));
+            SDL_RenderCopy(renderer, list.at(i)->phrasePermission, NULL, &rectPerm);
+            SDL_QueryTexture(list.at(i)->phraseSize, NULL,NULL, &(rectFSize.w), &(rectFSize.h));
+            SDL_RenderCopy(renderer, list.at(i)->phraseSize, NULL, &rectFSize);
+        }
+        else if(list.at(i)->type == 3)
+        {
+            SDL_RenderCopy(renderer, data->video, NULL, &rect);
+            SDL_QueryTexture(list.at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
+            SDL_RenderCopy(renderer, list.at(i)->phrase, NULL, &rectStr);
+            SDL_QueryTexture(list.at(i)->phrasePermission, NULL,NULL, &(rectPerm.w), &(rectPerm.h));
+            SDL_RenderCopy(renderer, list.at(i)->phrasePermission, NULL, &rectPerm);
+            SDL_QueryTexture(list.at(i)->phraseSize, NULL,NULL, &(rectFSize.w), &(rectFSize.h));
+            SDL_RenderCopy(renderer, list.at(i)->phraseSize, NULL, &rectFSize);
+        }
+        else if(list.at(i)->type == 4)
+        {
+            SDL_RenderCopy(renderer, data->code, NULL, &rect);
+            SDL_QueryTexture(list.at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
+            SDL_RenderCopy(renderer, list.at(i)->phrase, NULL, &rectStr);
+            SDL_QueryTexture(list.at(i)->phrasePermission, NULL,NULL, &(rectPerm.w), &(rectPerm.h));
+            SDL_RenderCopy(renderer, list.at(i)->phrasePermission, NULL, &rectPerm);
+            SDL_QueryTexture(list.at(i)->phraseSize, NULL,NULL, &(rectFSize.w), &(rectFSize.h));
+            SDL_RenderCopy(renderer, list.at(i)->phraseSize, NULL, &rectFSize);
+        }
+        else if(list.at(i)->type == 5)
+        {
+            SDL_RenderCopy(renderer, data->other, NULL, &rect);
+            SDL_QueryTexture(list.at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
+            SDL_RenderCopy(renderer, list.at(i)->phrase, NULL, &rectStr);
+            SDL_QueryTexture(list.at(i)->phrasePermission, NULL,NULL, &(rectPerm.w), &(rectPerm.h));
+            SDL_RenderCopy(renderer, list.at(i)->phrasePermission, NULL, &rectPerm);
+            SDL_QueryTexture(list.at(i)->phraseSize, NULL,NULL, &(rectFSize.w), &(rectFSize.h));
+            SDL_RenderCopy(renderer, list.at(i)->phraseSize, NULL, &rectFSize);
+        }
+    }
     // show rendered frame
     SDL_RenderPresent(renderer);
 }
