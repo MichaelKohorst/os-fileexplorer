@@ -18,6 +18,7 @@ class FileEntry
         int y;
         int w;
         int h;
+        SDL_Rect rect;
         std::string name;
         std::string readableSize;
         int type;
@@ -27,13 +28,14 @@ class FileEntry
         SDL_Texture *phrasePermission;
         std::string path;
         int fileSize;
+        std::vector<FileEntry*> list;
 };
   
 // Sub class inheriting from Base Class(Parent)
 class Directory : public FileEntry
 {
     public:
-        std::vector<FileEntry*> list;
+        
 };
  
 // Sub class inheriting from Base Class(Parent)
@@ -79,6 +81,7 @@ typedef struct AppData{
     bool scroll_selected;
     SDL_Rect scroll_rect;
     SDL_Point offset;
+    int offsetY;
     std::vector<FileEntry> list;
 }AppData;
 
@@ -154,8 +157,6 @@ std::vector<FileEntry*> fillFiles(std::string path)
 {
     std::string dot (".");
     std::size_t max = -1;
-    //std::cout << "-------------------------------------\n";
-    //std::cout << "path: " << path<<"\n";
     std::vector<FileEntry*> list;
     std::vector<std::string> files;
     for (const auto & entry : fs::directory_iterator(path)){
@@ -264,6 +265,22 @@ bool compare(FileEntry* x, FileEntry* y)
 
 } 
 
+void addParentDict(std::vector<FileEntry*> parentlist)
+{
+    for (int i = 0; i < parentlist.size(); i++)
+    {
+        if(parentlist.at(i)->type == 0 && parentlist.at(i)->name != "..")
+        {
+            std::cout << "list name:" << parentlist.at(i)->name << '\n';
+            Directory* dict = new Directory();
+            dict->name = "..";
+            dict->list = parentlist;
+            dict->type = 0;
+            parentlist.at(i)->list.push_back(dict);
+        }
+    }
+}
+
 void calcY(std::vector<FileEntry*> list)
 {
     for(int i = 0; i < list.size();i++)
@@ -314,6 +331,8 @@ int main(int argc, char **argv)
     //grab all files
     std::string path(home);
     std::vector<FileEntry*> list = fillFiles(path);
+    std::vector<FileEntry*> parentList;
+    std::vector<FileEntry*> currList = list;
     std::sort(list.begin(),list.end(), compare);
     //std::cout << list.at(0).name << '\n';
     /*for (int i=0; i<list.size(); i++)
@@ -323,7 +342,6 @@ int main(int argc, char **argv)
     //std::cout << list.at(1).name << '\n';
     // initializing SDL as Video
     calcY(list);
-
     SDL_Init(SDL_INIT_VIDEO);
     IMG_Init(IMG_INIT_PNG);
     TTF_Init();
@@ -348,23 +366,53 @@ int main(int argc, char **argv)
             case SDL_MOUSEMOTION:
                 if (data.scroll_selected)
                 {
-                    data.scroll_rect.x = event.motion.x - data.offset.x;
                     data.scroll_rect.y = event.motion.y - data.offset.y;
+                    
                 }
             case SDL_MOUSEBUTTONDOWN:
                 if (event.button.button == SDL_BUTTON_LEFT &&
+                    event.button.x >= data.scroll_rect.x &&
+                    event.button.x <= data.scroll_rect.x + data.scroll_rect.w &&
                     event.button.y >= data.scroll_rect.y &&
                     event.button.y <= data.scroll_rect.y + data.scroll_rect.h)
                 {
                     data.scroll_selected = true;
+                    data.offset.x = event.button.x - data.scroll_rect.x;
                     data.offset.y = event.button.y - data.scroll_rect.y;
+                }
+                for(int i = 0; i < currList.size();i++)
+                {
+                   if (event.button.button == SDL_BUTTON_LEFT &&
+                    event.button.x >= currList.at(i)->rect.x &&
+                    event.button.x <= currList.at(i)->rect.x + currList.at(i)->rect.w &&
+                    event.button.y >= currList.at(i)->rect.y &&
+                    event.button.y <= currList.at(i)->rect.y + currList.at(i)->rect.h)
+                    {
+                        if(currList.at(i)->type == 0)//dirct
+                        {
+                            parentList = currList;
+                            currList = currList.at(i)->list;
+                            calcY(currList);
+                            std::sort(currList.begin(),currList.end(), compare);
+                            if(currList.at(currList.size()-1)->name != "..")
+                            {
+                                addParentDict(parentList);
+                            }
+                            initialize(renderer, &data,currList);
+                            data.offsetY = 0;
+                        }
+                        else
+                        {
+                            
+                        }
+                    } 
                 }
                 break;
             case SDL_MOUSEBUTTONUP:
                 data.scroll_selected = false;
                 break;
         }
-        render(renderer, &data, list);
+        render(renderer, &data, currList);
     }
 
     // clean up
@@ -387,12 +435,9 @@ int main(int argc, char **argv)
     return 0;
 }
 
-void initialize(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list)
-{
-    // set color of background when erasing frame
-    SDL_SetRenderDrawColor(renderer, 235, 235, 235, 255);
 
-    data->font = TTF_OpenFont("resrc/OpenSans-Regular.ttf", 24);
+/*void initializeDirect(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list)
+{
     SDL_Color phrase_color = {0,0,0};
     for(int i = 0; i < list.size();i++)
     {
@@ -400,7 +445,51 @@ void initialize(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> l
         const char *nameChar = list.at(i)->name.c_str();
         SDL_Surface *text_surf = TTF_RenderText_Solid(data->font, nameChar, phrase_color);
         list.at(i)->phrase = SDL_CreateTextureFromSurface(renderer,text_surf);
+        list.at(i)->rect.x = list.at(i)->x-1;
+        list.at(i)->rect.w = 350;
+        list.at(i)->rect.h = 62;
+        list.at(i)->rect.y = list.at(i)->y-1;
+        if(list.at(i)->type !=0)
+        {
+            //permissions size
+            const char *permissionChar = list.at(i)->permissions.c_str();
+            SDL_Surface *text_surfPerm = TTF_RenderText_Solid(data->font, permissionChar, phrase_color);
+            list.at(i)->phrasePermission = SDL_CreateTextureFromSurface(renderer,text_surfPerm);
 
+            //file size
+            const char *sizeChar = list.at(i)->readableSize.c_str();
+            SDL_Surface *text_surfSize = TTF_RenderText_Solid(data->font, sizeChar, phrase_color);
+            list.at(i)->phraseSize = SDL_CreateTextureFromSurface(renderer,text_surfSize);
+
+            SDL_FreeSurface(text_surfSize);
+            SDL_FreeSurface(text_surfPerm);
+        }
+        else
+        {
+            initializeDirect(renderer, data, list.at(i)->list);
+        }
+        SDL_FreeSurface(text_surf);
+        
+    }
+}*/
+
+void initialize(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list)
+{
+    // set color of background when erasing frame
+    SDL_SetRenderDrawColor(renderer, 235, 235, 235, 255);
+
+    data->font = TTF_OpenFont("resrc/OpenSans-Regular.ttf", 13);
+    SDL_Color phrase_color = {0,0,0};
+    for(int i = 0; i < list.size();i++)
+    {
+        //name
+        const char *nameChar = list.at(i)->name.c_str();
+        SDL_Surface *text_surf = TTF_RenderText_Solid(data->font, nameChar, phrase_color);
+        list.at(i)->phrase = SDL_CreateTextureFromSurface(renderer,text_surf);
+        list.at(i)->rect.x = list.at(i)->x-1;
+        list.at(i)->rect.w = 350;
+        list.at(i)->rect.h = 62;
+        list.at(i)->rect.y = list.at(i)->y-1;
         if(list.at(i)->type !=0)
         {
             //permissions size
@@ -421,10 +510,12 @@ void initialize(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> l
     }
 
     //scrollbar
+    data->offsetY =0;
     data->scroll_rect.x = 780;
     data->scroll_rect.w = 20;
     data->scroll_rect.h = 60;
     data->scroll_rect.y = 0;
+    data->scroll_selected = false;
 
     
     SDL_Surface *surf = IMG_Load("resrc/other.png");
@@ -455,91 +546,97 @@ void render(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list)
 
     //render all file icons
     
-    int bottomLimit = list.at(list.size()-1)->y;
-    int offsetY = 0;
+    double bottomLimit = list.at(list.size()-1)->y+60;
+    double temp = data->scroll_rect.y;
+    double percent = (temp/600.0)*bottomLimit;
+    data->offsetY = int(percent);
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderFillRect(renderer, &data->scroll_rect);
     for(int i = 0; i < list.size(); i++)
     {
-        SDL_Rect rectPerm;
-        rectPerm.x = 420;
-        rectPerm.w = 60;
-        rectPerm.h = 60;
-        rectPerm.y = list.at(i)->y;
-        
-        SDL_Rect rect;
-        rect.x = 10;
-        rect.w = 60;
-        rect.h = 60;
-        rect.y = list.at(i)->y;
-        
-        SDL_Rect rectStr;
-        rectStr.x = 110;
-        rectStr.w = 300;
-        rectStr.h = 60;
-        rectStr.y = list.at(i)->y;
+        list.at(i)->rect.y = list.at(i)->y - data->offsetY;
+        if(list.at(i)->y-data->offsetY < 600 && list.at(i)->y-data->offsetY +60 > 0)
+        {
+            SDL_Rect rectPerm;
+            rectPerm.x = 420;
+            rectPerm.w = 60;
+            rectPerm.h = 60;
+            rectPerm.y = list.at(i)->y-data->offsetY;
+            
+            SDL_Rect rect;
+            rect.x = 10;
+            rect.w = 60;
+            rect.h = 60;
+            rect.y = list.at(i)->y-data->offsetY;
+            
+            SDL_Rect rectStr;
+            rectStr.x = 110;
+            rectStr.w = 300;
+            rectStr.h = 60;
+            rectStr.y = list.at(i)->y-data->offsetY;
 
-        SDL_Rect rectFSize;
-        rectFSize.x = 630;
-        rectFSize.w = 300;
-        rectFSize.h = 60;
-        rectFSize.y = list.at(i)->y;
-        
-        if(list.at(i)->type == 0)
-        {
-            SDL_RenderCopy(renderer, data->direct, NULL, &rect);
-            SDL_QueryTexture(list.at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
-            SDL_RenderCopy(renderer, list.at(i)->phrase, NULL, &rectStr);
-        }
-        else if(list.at(i)->type == 1)
-        {
-            SDL_RenderCopy(renderer, data->exec, NULL, &rect);
-            SDL_QueryTexture(list.at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
-            SDL_RenderCopy(renderer, list.at(i)->phrase, NULL, &rectStr);
-            SDL_QueryTexture(list.at(i)->phrasePermission, NULL,NULL, &(rectPerm.w), &(rectPerm.h));
-            SDL_RenderCopy(renderer, list.at(i)->phrasePermission, NULL, &rectPerm);
-            SDL_QueryTexture(list.at(i)->phraseSize, NULL,NULL, &(rectFSize.w), &(rectFSize.h));
-            SDL_RenderCopy(renderer, list.at(i)->phraseSize, NULL, &rectFSize);
-        }
-        else if(list.at(i)->type == 2)
-        {
-            SDL_RenderCopy(renderer, data->image, NULL, &rect);
-            SDL_QueryTexture(list.at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
-            SDL_RenderCopy(renderer, list.at(i)->phrase, NULL, &rectStr);
-            SDL_QueryTexture(list.at(i)->phrasePermission, NULL,NULL, &(rectPerm.w), &(rectPerm.h));
-            SDL_RenderCopy(renderer, list.at(i)->phrasePermission, NULL, &rectPerm);
-            SDL_QueryTexture(list.at(i)->phraseSize, NULL,NULL, &(rectFSize.w), &(rectFSize.h));
-            SDL_RenderCopy(renderer, list.at(i)->phraseSize, NULL, &rectFSize);
-        }
-        else if(list.at(i)->type == 3)
-        {
-            SDL_RenderCopy(renderer, data->video, NULL, &rect);
-            SDL_QueryTexture(list.at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
-            SDL_RenderCopy(renderer, list.at(i)->phrase, NULL, &rectStr);
-            SDL_QueryTexture(list.at(i)->phrasePermission, NULL,NULL, &(rectPerm.w), &(rectPerm.h));
-            SDL_RenderCopy(renderer, list.at(i)->phrasePermission, NULL, &rectPerm);
-            SDL_QueryTexture(list.at(i)->phraseSize, NULL,NULL, &(rectFSize.w), &(rectFSize.h));
-            SDL_RenderCopy(renderer, list.at(i)->phraseSize, NULL, &rectFSize);
-        }
-        else if(list.at(i)->type == 4)
-        {
-            SDL_RenderCopy(renderer, data->code, NULL, &rect);
-            SDL_QueryTexture(list.at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
-            SDL_RenderCopy(renderer, list.at(i)->phrase, NULL, &rectStr);
-            SDL_QueryTexture(list.at(i)->phrasePermission, NULL,NULL, &(rectPerm.w), &(rectPerm.h));
-            SDL_RenderCopy(renderer, list.at(i)->phrasePermission, NULL, &rectPerm);
-            SDL_QueryTexture(list.at(i)->phraseSize, NULL,NULL, &(rectFSize.w), &(rectFSize.h));
-            SDL_RenderCopy(renderer, list.at(i)->phraseSize, NULL, &rectFSize);
-        }
-        else if(list.at(i)->type == 5)
-        {
-            SDL_RenderCopy(renderer, data->other, NULL, &rect);
-            SDL_QueryTexture(list.at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
-            SDL_RenderCopy(renderer, list.at(i)->phrase, NULL, &rectStr);
-            SDL_QueryTexture(list.at(i)->phrasePermission, NULL,NULL, &(rectPerm.w), &(rectPerm.h));
-            SDL_RenderCopy(renderer, list.at(i)->phrasePermission, NULL, &rectPerm);
-            SDL_QueryTexture(list.at(i)->phraseSize, NULL,NULL, &(rectFSize.w), &(rectFSize.h));
-            SDL_RenderCopy(renderer, list.at(i)->phraseSize, NULL, &rectFSize);
+            SDL_Rect rectFSize;
+            rectFSize.x = 630;
+            rectFSize.w = 300;
+            rectFSize.h = 60;
+            rectFSize.y = list.at(i)->y-data->offsetY;
+            
+            if(list.at(i)->type == 0)
+            {
+                SDL_RenderCopy(renderer, data->direct, NULL, &rect);
+                SDL_QueryTexture(list.at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
+                SDL_RenderCopy(renderer, list.at(i)->phrase, NULL, &rectStr);
+            }
+            else if(list.at(i)->type == 1)
+            {
+                SDL_RenderCopy(renderer, data->exec, NULL, &rect);
+                SDL_QueryTexture(list.at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
+                SDL_RenderCopy(renderer, list.at(i)->phrase, NULL, &rectStr);
+                SDL_QueryTexture(list.at(i)->phrasePermission, NULL,NULL, &(rectPerm.w), &(rectPerm.h));
+                SDL_RenderCopy(renderer, list.at(i)->phrasePermission, NULL, &rectPerm);
+                SDL_QueryTexture(list.at(i)->phraseSize, NULL,NULL, &(rectFSize.w), &(rectFSize.h));
+                SDL_RenderCopy(renderer, list.at(i)->phraseSize, NULL, &rectFSize);
+            }
+            else if(list.at(i)->type == 2)
+            {
+                SDL_RenderCopy(renderer, data->image, NULL, &rect);
+                SDL_QueryTexture(list.at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
+                SDL_RenderCopy(renderer, list.at(i)->phrase, NULL, &rectStr);
+                SDL_QueryTexture(list.at(i)->phrasePermission, NULL,NULL, &(rectPerm.w), &(rectPerm.h));
+                SDL_RenderCopy(renderer, list.at(i)->phrasePermission, NULL, &rectPerm);
+                SDL_QueryTexture(list.at(i)->phraseSize, NULL,NULL, &(rectFSize.w), &(rectFSize.h));
+                SDL_RenderCopy(renderer, list.at(i)->phraseSize, NULL, &rectFSize);
+            }
+            else if(list.at(i)->type == 3)
+            {
+                SDL_RenderCopy(renderer, data->video, NULL, &rect);
+                SDL_QueryTexture(list.at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
+                SDL_RenderCopy(renderer, list.at(i)->phrase, NULL, &rectStr);
+                SDL_QueryTexture(list.at(i)->phrasePermission, NULL,NULL, &(rectPerm.w), &(rectPerm.h));
+                SDL_RenderCopy(renderer, list.at(i)->phrasePermission, NULL, &rectPerm);
+                SDL_QueryTexture(list.at(i)->phraseSize, NULL,NULL, &(rectFSize.w), &(rectFSize.h));
+                SDL_RenderCopy(renderer, list.at(i)->phraseSize, NULL, &rectFSize);
+            }
+            else if(list.at(i)->type == 4)
+            {
+                SDL_RenderCopy(renderer, data->code, NULL, &rect);
+                SDL_QueryTexture(list.at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
+                SDL_RenderCopy(renderer, list.at(i)->phrase, NULL, &rectStr);
+                SDL_QueryTexture(list.at(i)->phrasePermission, NULL,NULL, &(rectPerm.w), &(rectPerm.h));
+                SDL_RenderCopy(renderer, list.at(i)->phrasePermission, NULL, &rectPerm);
+                SDL_QueryTexture(list.at(i)->phraseSize, NULL,NULL, &(rectFSize.w), &(rectFSize.h));
+                SDL_RenderCopy(renderer, list.at(i)->phraseSize, NULL, &rectFSize);
+            }
+            else if(list.at(i)->type == 5)
+            {
+                SDL_RenderCopy(renderer, data->other, NULL, &rect);
+                SDL_QueryTexture(list.at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
+                SDL_RenderCopy(renderer, list.at(i)->phrase, NULL, &rectStr);
+                SDL_QueryTexture(list.at(i)->phrasePermission, NULL,NULL, &(rectPerm.w), &(rectPerm.h));
+                SDL_RenderCopy(renderer, list.at(i)->phrasePermission, NULL, &rectPerm);
+                SDL_QueryTexture(list.at(i)->phraseSize, NULL,NULL, &(rectFSize.w), &(rectFSize.h));
+                SDL_RenderCopy(renderer, list.at(i)->phraseSize, NULL, &rectFSize);
+            }
         }
     }
     // show rendered frame
