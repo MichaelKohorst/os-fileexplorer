@@ -167,7 +167,7 @@ std::vector<FileEntry*> fillFiles(std::string path)
             Directory* dict = new Directory();
             dict->name = removeSchmutz(filename.substr(path.length()));
             //std::cout << "dict.name: " << dict.name<<"\n";
-            dict->list = fillFiles(filename);
+            dict->list = fillFiles(filename );
             dict->type = 0;
             dict->path = filename;
             list.push_back(dict);
@@ -265,20 +265,45 @@ bool compare(FileEntry* x, FileEntry* y)
 
 } 
 
-void addParentDict(std::vector<FileEntry*> parentlist)
+/*std::vector<FileEntry*> addParentDictR(std::vector<FileEntry*> parentlist)
 {
     for (int i = 0; i < parentlist.size(); i++)
     {
         if(parentlist.at(i)->type == 0 && parentlist.at(i)->name != "..")
         {
-            std::cout << "list name:" << parentlist.at(i)->name << '\n';
-            Directory* dict = new Directory();
-            dict->name = "..";
-            dict->list = parentlist;
-            dict->type = 0;
-            parentlist.at(i)->list.push_back(dict);
+            addParentDict(parentlist, parentlist.at(i)->list);
         }
     }
+    return parentlist;
+}*/
+
+
+std::vector<FileEntry*> addParentDict(std::vector<FileEntry*> parentlist, std::vector<FileEntry*> currlist)
+{
+    std::cout << "adding parent to list1:" << '\n';
+    if(currlist.size() == 0)
+    {
+        //std::cout << "list name:" << currlist.at(i)->name << '\n';
+        Directory* dict = new Directory();
+        dict->name = "..";
+        dict->list = parentlist;
+        dict->type = 0;
+        std::cout << "adding parent to list of zero:" << '\n';
+        currlist.push_back(dict);
+    }
+    else if(currlist.at(0)->name != "..")
+    {
+        std::cout << "adding parent to list:2" << '\n';
+        Directory* dict = new Directory();
+        dict->name = "..";
+        dict->list = parentlist;
+        dict->type = 0;
+        std::cout << "adding parent to list3:" << '\n';
+        currlist.push_back(dict);
+        std::cout << "adding parent to list4:" << '\n';
+        std::cout << "currlist.at(currlist.size()-1)->name: "<< currlist.at(currlist.size()-1)->name << '\n';
+    }
+    return currlist;
 }
 
 void calcY(std::vector<FileEntry*> list)
@@ -334,6 +359,7 @@ int main(int argc, char **argv)
     std::vector<FileEntry*> parentList;
     std::vector<FileEntry*> currList = list;
     std::sort(list.begin(),list.end(), compare);
+    //currList = addParentDict(currList);
     //std::cout << list.at(0).name << '\n';
     /*for (int i=0; i<list.size(); i++)
     {
@@ -392,12 +418,12 @@ int main(int argc, char **argv)
                         {
                             parentList = currList;
                             currList = currList.at(i)->list;
-                            calcY(currList);
-                            std::sort(currList.begin(),currList.end(), compare);
-                            if(currList.at(currList.size()-1)->name != "..")
+                            currList = addParentDict(parentList,currList);
+                            if(currList.size()>1)
                             {
-                                addParentDict(parentList);
+                                std::sort(currList.begin(),currList.end(), compare);
                             }
+                            calcY(currList);
                             initialize(renderer, &data,currList);
                             data.offsetY = 0;
                         }
@@ -434,44 +460,6 @@ int main(int argc, char **argv)
 
     return 0;
 }
-
-
-/*void initializeDirect(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list)
-{
-    SDL_Color phrase_color = {0,0,0};
-    for(int i = 0; i < list.size();i++)
-    {
-        //name
-        const char *nameChar = list.at(i)->name.c_str();
-        SDL_Surface *text_surf = TTF_RenderText_Solid(data->font, nameChar, phrase_color);
-        list.at(i)->phrase = SDL_CreateTextureFromSurface(renderer,text_surf);
-        list.at(i)->rect.x = list.at(i)->x-1;
-        list.at(i)->rect.w = 350;
-        list.at(i)->rect.h = 62;
-        list.at(i)->rect.y = list.at(i)->y-1;
-        if(list.at(i)->type !=0)
-        {
-            //permissions size
-            const char *permissionChar = list.at(i)->permissions.c_str();
-            SDL_Surface *text_surfPerm = TTF_RenderText_Solid(data->font, permissionChar, phrase_color);
-            list.at(i)->phrasePermission = SDL_CreateTextureFromSurface(renderer,text_surfPerm);
-
-            //file size
-            const char *sizeChar = list.at(i)->readableSize.c_str();
-            SDL_Surface *text_surfSize = TTF_RenderText_Solid(data->font, sizeChar, phrase_color);
-            list.at(i)->phraseSize = SDL_CreateTextureFromSurface(renderer,text_surfSize);
-
-            SDL_FreeSurface(text_surfSize);
-            SDL_FreeSurface(text_surfPerm);
-        }
-        else
-        {
-            initializeDirect(renderer, data, list.at(i)->list);
-        }
-        SDL_FreeSurface(text_surf);
-        
-    }
-}*/
 
 void initialize(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list)
 {
