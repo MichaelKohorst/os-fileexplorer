@@ -80,8 +80,11 @@ typedef struct AppData{
     SDL_Texture *exec;
     SDL_Texture *direct;
     SDL_Texture *phrase;
+    SDL_Texture *buttonR;
     bool scroll_selected;
     SDL_Rect scroll_rect;
+    bool button_selected;
+    SDL_Rect button_rect;
     SDL_Point offset;
     int offsetY;
     std::vector<FileEntry> list;
@@ -313,7 +316,7 @@ void calcY(std::vector<FileEntry*> list)
     for(int i = 0; i < list.size();i++)
     {
         list.at(i)->x = 10;
-        list.at(i)->y = i*60 + i*10;
+        list.at(i)->y = i*60 + i*10 +31;
         list.at(i)->h = 60;
         list.at(i)->w = 60;
     }
@@ -408,6 +411,17 @@ int main(int argc, char **argv)
                     data.offset.x = event.button.x - data.scroll_rect.x;
                     data.offset.y = event.button.y - data.scroll_rect.y;
                 }
+
+                if (event.button.button == SDL_BUTTON_LEFT &&
+                    event.button.x >= data.button_rect.x &&
+                    event.button.x <= data.button_rect.x + data.button_rect.w &&
+                    event.button.y >= data.button_rect.y &&
+                    event.button.y <= data.button_rect.y + data.button_rect.h && !data.scroll_selected)
+                {
+                    if(data.button_selected){data.button_selected = false;}
+                    else{data.button_selected = true;}
+                }
+
                 for(int i = 0; i < currList.size();i++)
                 {
                     //std::cout << "list.at(i)->name: " << currList.at(i)->name<<"\n";
@@ -415,13 +429,19 @@ int main(int argc, char **argv)
                     event.button.x >= currList.at(i)->rect.x &&
                     event.button.x <= currList.at(i)->rect.x + currList.at(i)->rect.w &&
                     event.button.y >= currList.at(i)->rect.y &&
-                    event.button.y <= currList.at(i)->rect.y + currList.at(i)->rect.h)
+                    event.button.y <= currList.at(i)->rect.y + currList.at(i)->rect.h && !data.scroll_selected)
                     {
                         if(currList.at(i)->type == 0)//dirct
                         {
                             parentList = currList;
-                            currList = currList.at(i)->list;
-                            currList = addParentDict(parentList,currList);
+                            if(currList.at(i)->name.compare("..") != 0)
+                            {
+                                currList = addParentDict(parentList,currList.at(i)->list);
+                            }  
+                            else{
+                                currList = currList.at(i)->list;
+                            }
+                            
                             if(currList.size()>1)
                             {
                                 std::sort(currList.begin(),currList.end(), compare);
@@ -511,12 +531,20 @@ void initialize(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> l
 
     //scrollbar
     data->offsetY =0;
+    data->button_rect.x = 320;
+    data->button_rect.w = 20;
+    data->button_rect.h = 20;
+    data->button_rect.y = 5;
+    data->button_selected = false;
     data->scroll_rect.x = 780;
     data->scroll_rect.w = 20;
     data->scroll_rect.h = 60;
     data->scroll_rect.y = 0;
     data->scroll_selected = false;
-
+    phrase_color = {255,255,255};
+    SDL_Surface *text_surfButton = TTF_RenderText_Solid(data->font, "Recursive Mode", phrase_color);
+    data->buttonR = SDL_CreateTextureFromSurface(renderer,text_surfButton);
+    SDL_FreeSurface(text_surfButton);
     
     SDL_Surface *surf = IMG_Load("resrc/other.png");
     SDL_Surface *surf1 = IMG_Load("resrc/direct.png");
@@ -546,7 +574,7 @@ void render(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list)
 
     //render all file icons
     
-    double bottomLimit = list.at(list.size()-1)->y+60;
+    double bottomLimit = list.at(list.size()-1)->y+160;
     double temp = data->scroll_rect.y;
     double percent = (temp/600.0)*bottomLimit;
     data->offsetY = int(percent);
@@ -555,7 +583,7 @@ void render(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list)
     for(int i = 0; i < list.size(); i++)
     {
         list.at(i)->rect.y = list.at(i)->y - data->offsetY;
-        if(list.at(i)->y-data->offsetY < 600 && list.at(i)->y-data->offsetY +60 > 0)
+        if(list.at(i)->y-data->offsetY < 600 && list.at(i)->y-data->offsetY > -29)
         {
             SDL_Rect rectPerm;
             rectPerm.x = 420;
@@ -639,6 +667,29 @@ void render(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list)
             }
         }
     }
+
+    SDL_Rect bar;
+    bar.x = 0;
+    bar.y = 0;
+    bar.w = 780;
+    bar.h = 30;
+    SDL_SetRenderDrawColor(renderer, 102, 102, 102, 255);
+    SDL_RenderFillRect(renderer, &bar);
+    if(data->button_selected)
+    {
+        SDL_SetRenderDrawColor(renderer, 12, 210, 12, 255);
+    }
+    else{
+        SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+    }
+    SDL_RenderFillRect(renderer, &data->button_rect);
+    SDL_Rect rect;
+            rect.x = 350;
+            rect.w = 60;
+            rect.h = 60;
+            rect.y = 2;
+    SDL_QueryTexture(data->buttonR, NULL,NULL, &(rect.w), &(rect.h));
+    SDL_RenderCopy(renderer, data->buttonR, NULL, &rect);
     // show rendered frame
     SDL_RenderPresent(renderer);
 }
