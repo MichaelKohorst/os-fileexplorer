@@ -87,9 +87,11 @@ typedef struct AppData{
     SDL_Rect button_rect;
     SDL_Point offset;
     int offsetY;
+    int offsetRer;
     std::vector<FileEntry> list;
 }AppData;
-
+void renderR(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list);
+void initializeR(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list);
 void initialize(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list);
 void render(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list);
 std::string humanReadable(int input);
@@ -418,8 +420,14 @@ int main(int argc, char **argv)
                     event.button.y >= data.button_rect.y &&
                     event.button.y <= data.button_rect.y + data.button_rect.h && !data.scroll_selected)
                 {
-                    if(data.button_selected){data.button_selected = false;}
-                    else{data.button_selected = true;}
+                    if(data.button_selected){
+                        initialize(renderer, &data,currList);
+                        data.button_selected = false;
+                    }
+                    else{
+                        initializeR(renderer, &data,list);
+                        data.button_selected = true;
+                    }
                 }
 
                 for(int i = 0; i < currList.size();i++)
@@ -470,7 +478,13 @@ int main(int argc, char **argv)
                 data.scroll_selected = false;
                 break;
         }
-        render(renderer, &data, currList);
+        if(data.button_selected){
+            renderR(renderer, &data, list);
+        }
+        else{
+            render(renderer, &data, currList);
+        }
+        
     }
 
     // clean up
@@ -491,6 +505,38 @@ int main(int argc, char **argv)
     SDL_Quit();
 
     return 0;
+}
+
+void initializeR(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list)
+{
+    SDL_SetRenderDrawColor(renderer, 235, 235, 235, 255);
+
+    data->font = TTF_OpenFont("resrc/OpenSans-Regular.ttf", 10);
+    SDL_Color phrase_color = {0,0,0};
+    for(int i = 0; i < list.size();i++)
+    {
+        //name
+        const char *nameChar = list.at(i)->name.c_str();
+        SDL_Surface *text_surf = TTF_RenderText_Solid(data->font, nameChar, phrase_color);
+        list.at(i)->phrase = SDL_CreateTextureFromSurface(renderer,text_surf);
+        if(list.at(i)->type !=0)
+        {
+            //permissions size
+            const char *permissionChar = list.at(i)->permissions.c_str();
+            SDL_Surface *text_surfPerm = TTF_RenderText_Solid(data->font, permissionChar, phrase_color);
+            list.at(i)->phrasePermission = SDL_CreateTextureFromSurface(renderer,text_surfPerm);
+
+            //file size
+            const char *sizeChar = list.at(i)->readableSize.c_str();
+            SDL_Surface *text_surfSize = TTF_RenderText_Solid(data->font, sizeChar, phrase_color);
+            list.at(i)->phraseSize = SDL_CreateTextureFromSurface(renderer,text_surfSize);
+
+            SDL_FreeSurface(text_surfSize);
+            SDL_FreeSurface(text_surfPerm);
+        }
+        SDL_FreeSurface(text_surf);
+        
+    }
 }
 
 void initialize(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list)
@@ -566,10 +612,11 @@ void initialize(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> l
     SDL_FreeSurface(surf5);
 }
 
+
 void render(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list)
 {
     // erase renderer content
-    SDL_SetRenderDrawColor(renderer, 0, 235, 235, 255);
+    SDL_SetRenderDrawColor(renderer, 255, 204, 103, 255);
     SDL_RenderClear(renderer);
 
     //render all file icons
@@ -667,6 +714,156 @@ void render(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list)
             }
         }
     }
+
+    SDL_Rect bar;
+    bar.x = 0;
+    bar.y = 0;
+    bar.w = 780;
+    bar.h = 30;
+    SDL_SetRenderDrawColor(renderer, 102, 102, 102, 255);
+    SDL_RenderFillRect(renderer, &bar);
+    if(data->button_selected)
+    {
+        SDL_SetRenderDrawColor(renderer, 12, 210, 12, 255);
+    }
+    else{
+        SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+    }
+    SDL_RenderFillRect(renderer, &data->button_rect);
+    SDL_Rect rect;
+            rect.x = 350;
+            rect.w = 60;
+            rect.h = 60;
+            rect.y = 2;
+    SDL_QueryTexture(data->buttonR, NULL,NULL, &(rect.w), &(rect.h));
+    SDL_RenderCopy(renderer, data->buttonR, NULL, &rect);
+    // show rendered frame
+    SDL_RenderPresent(renderer);
+}
+
+void renderRDirects(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*>* list, int xOffset)
+{
+    
+    for(int i = 0; i < list->size(); i++)
+    {
+        list->at(i)->rect.y = list->at(i)->y;
+        list->at(i)->rect.x = list->at(i)->x + xOffset;
+        list->at(i)->rect.w = 150;
+        list->at(i)->rect.h = 30;
+        //ist->at(i)->y = list->at(i)->y-1;
+        if(list->at(i)->y-data->offsetY < 600 && list->at(i)->y-data->offsetY > -29)
+        {
+            SDL_Rect rectPerm;
+            rectPerm.x = 300 + xOffset;
+            rectPerm.w = 60;
+            rectPerm.h = 60;
+            rectPerm.y = data->offsetRer - data->offsetY;
+            list->at(i)->y = data->offsetRer - data->offsetY;
+            
+            SDL_Rect rect;
+            rect.x = 10+ xOffset;
+            rect.w = 60;
+            rect.h = 60;
+            rect.y = data->offsetRer - data->offsetY;
+            
+            SDL_Rect rectStr;
+            rectStr.x = 110+ xOffset;
+            rectStr.w = 300;
+            rectStr.h = 60;
+            rectStr.y = data->offsetRer - data->offsetY;
+
+            SDL_Rect rectFSize;
+            rectFSize.x = 500 + xOffset;
+            rectFSize.w = 300;
+            rectFSize.h = 60;
+            rectFSize.y = data->offsetRer - data->offsetY;
+            
+            if(list->at(i)->type == 0)
+            {
+                SDL_RenderCopy(renderer, data->direct, NULL, &rect);
+                SDL_QueryTexture(list->at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
+                SDL_RenderCopy(renderer, list->at(i)->phrase, NULL, &rectStr);
+                data->offsetRer = data->offsetRer + 40;
+                renderRDirects(renderer, data, list, xOffset + 10);
+            }
+            else if(list->at(i)->type == 1)
+            {
+                SDL_RenderCopy(renderer, data->exec, NULL, &rect);
+                SDL_QueryTexture(list->at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
+                SDL_RenderCopy(renderer, list->at(i)->phrase, NULL, &rectStr);
+                SDL_QueryTexture(list->at(i)->phrasePermission, NULL,NULL, &(rectPerm.w), &(rectPerm.h));
+                SDL_RenderCopy(renderer, list->at(i)->phrasePermission, NULL, &rectPerm);
+                SDL_QueryTexture(list->at(i)->phraseSize, NULL,NULL, &(rectFSize.w), &(rectFSize.h));
+                SDL_RenderCopy(renderer, list->at(i)->phraseSize, NULL, &rectFSize);
+                data->offsetRer = data->offsetRer + 40;
+                
+            }
+            else if(list->at(i)->type == 2)
+            {
+                SDL_RenderCopy(renderer, data->image, NULL, &rect);
+                SDL_QueryTexture(list->at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
+                SDL_RenderCopy(renderer, list->at(i)->phrase, NULL, &rectStr);
+                SDL_QueryTexture(list->at(i)->phrasePermission, NULL,NULL, &(rectPerm.w), &(rectPerm.h));
+                SDL_RenderCopy(renderer, list->at(i)->phrasePermission, NULL, &rectPerm);
+                SDL_QueryTexture(list->at(i)->phraseSize, NULL,NULL, &(rectFSize.w), &(rectFSize.h));
+                SDL_RenderCopy(renderer, list->at(i)->phraseSize, NULL, &rectFSize);
+                data->offsetRer = data->offsetRer + 40;
+                
+            }
+            else if(list->at(i)->type == 3)
+            {
+                SDL_RenderCopy(renderer, data->video, NULL, &rect);
+                SDL_QueryTexture(list->at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
+                SDL_RenderCopy(renderer, list->at(i)->phrase, NULL, &rectStr);
+                SDL_QueryTexture(list->at(i)->phrasePermission, NULL,NULL, &(rectPerm.w), &(rectPerm.h));
+                SDL_RenderCopy(renderer, list->at(i)->phrasePermission, NULL, &rectPerm);
+                SDL_QueryTexture(list->at(i)->phraseSize, NULL,NULL, &(rectFSize.w), &(rectFSize.h));
+                SDL_RenderCopy(renderer, list->at(i)->phraseSize, NULL, &rectFSize);
+                data->offsetRer = data->offsetRer + 40;
+               
+            }
+            else if(list->at(i)->type == 4)
+            {
+                SDL_RenderCopy(renderer, data->code, NULL, &rect);
+                SDL_QueryTexture(list->at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
+                SDL_RenderCopy(renderer, list->at(i)->phrase, NULL, &rectStr);
+                SDL_QueryTexture(list->at(i)->phrasePermission, NULL,NULL, &(rectPerm.w), &(rectPerm.h));
+                SDL_RenderCopy(renderer, list->at(i)->phrasePermission, NULL, &rectPerm);
+                SDL_QueryTexture(list->at(i)->phraseSize, NULL,NULL, &(rectFSize.w), &(rectFSize.h));
+                SDL_RenderCopy(renderer, list->at(i)->phraseSize, NULL, &rectFSize);
+                data->offsetRer = data->offsetRer + 40;
+               
+            }
+            else if(list->at(i)->type == 5)
+            {
+                SDL_RenderCopy(renderer, data->other, NULL, &rect);
+                SDL_QueryTexture(list->at(i)->phrase, NULL,NULL, &(rectStr.w), &(rectStr.h));
+                SDL_RenderCopy(renderer, list->at(i)->phrase, NULL, &rectStr);
+                SDL_QueryTexture(list->at(i)->phrasePermission, NULL,NULL, &(rectPerm.w), &(rectPerm.h));
+                SDL_RenderCopy(renderer, list->at(i)->phrasePermission, NULL, &rectPerm);
+                SDL_QueryTexture(list->at(i)->phraseSize, NULL,NULL, &(rectFSize.w), &(rectFSize.h));
+                SDL_RenderCopy(renderer, list->at(i)->phraseSize, NULL, &rectFSize);
+                data->offsetRer = data->offsetRer + 40;
+            }
+        }
+    }
+}
+
+void renderR(SDL_Renderer *renderer, AppData *data, std::vector<FileEntry*> list)
+{
+    // erase renderer content
+    SDL_SetRenderDrawColor(renderer, 255, 204, 103, 255);
+    SDL_RenderClear(renderer);
+
+    double bottomLimit = data->offsetRer;
+    
+    //render all file icons
+    
+    double temp = data->scroll_rect.y;
+    double percent = (temp/600.0)*bottomLimit;
+    data->offsetY = int(percent);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderFillRect(renderer, &data->scroll_rect);
 
     SDL_Rect bar;
     bar.x = 0;
